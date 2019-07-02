@@ -4,48 +4,18 @@ import asyncio
 import datetime
 from telethon import events
 from telethon.tl import functions, types
-from telethon.utils import resolve_id
-from uniborg.util import admin_cmd
 
 
 borg.storage.USER_AFK = {}  # pylint:disable=E0602
 borg.storage.afk_time = None  # pylint:disable=E0602
 borg.storage.last_afk_message = {}  # pylint:disable=E0602
-borg.storage.recvd_messages = {}  # pylint:disable=E0602
 
 
 @borg.on(events.NewMessage(outgoing=True))  # pylint:disable=E0602
 async def set_not_afk(event):
     current_message = event.message.message
     if ".afk" not in current_message and "yes" in borg.storage.USER_AFK:  # pylint:disable=E0602
-        borg.storage.USER_AFK = {}  # pylint:disable=E0602
-        borg.storage.afk_time = None  # pylint:disable=E0602
-        # pylint:disable=E0602
-        for chat_id in borg.storage.last_afk_message:
-            await borg.storage.last_afk_message[chat_id].delete()
-        borg.storage.last_afk_message = {}  # pylint:disable=E0602
-        recvd_messages = "You received the following messages: \n"
-        # pylint:disable=E0602
-        for chat_id in borg.storage.recvd_messages:  # pylint:disable=E0602
-            current_message = borg.storage.recvd_messages[chat_id]
-            user_id = current_message.from_id
-            message_id = current_message.id
-            # check_condition = str(chat_id).startswith("-")
-            # chat_id, _ = resolve_id(chat_id)
-            # https://t.me/DeepLink/21
-            # if not check_condition:
-            #     recvd_messages += "👉 tg://openmessage?chat_id={}&message_id={} \n".format(chat_id, message_id)
-            # else:
-            #     recvd_messages += "👉 https://t.me/c/{}/{} \n\n".format(chat_id, message_id)
-            chat_id, _ = resolve_id(chat_id)
-            recvd_messages += "👉 tg://openmessage?chat_id={}&message_id={} \n".format(chat_id, message_id)
         try:
-            if recvd_messages != "You received the following messages: \n":
-                await borg.send_message(  # pylint:disable=E0602
-                    Config.PRIVATE_GROUP_BOT_API_ID,  # pylint:disable=E0602
-                    recvd_messages,
-                    link_preview=False
-                )
             await borg.send_message(  # pylint:disable=E0602
                 Config.PRIVATE_GROUP_BOT_API_ID,  # pylint:disable=E0602
                 "Set AFK mode to False"
@@ -59,10 +29,11 @@ async def set_not_afk(event):
                 reply_to=event.message.id,
                 silent=True
             )
-        borg.storage.recvd_messages = {}
+        borg.storage.USER_AFK = {}  # pylint:disable=E0602
+        borg.storage.afk_time = None  # pylint:disable=E0602
 
 
-@borg.on(admin_cmd("afk ?((.|\n)*)"))  # pylint:disable=E0602
+@borg.on(events.NewMessage(pattern=r"\.afk ?(.*)", outgoing=True))  # pylint:disable=E0602
 async def _(event):
     if event.fwd_from:
         return
@@ -73,8 +44,7 @@ async def _(event):
                 types.InputPrivacyKeyStatusTimestamp()
             )
         )
-        # logger.info(last_seen_status)
-        if len(last_seen_status.rules) > 0 and isinstance(last_seen_status.rules[0], types.PrivacyValueAllowAll):
+        if isinstance(last_seen_status.rules, types.PrivacyValueAllowAll):
             borg.storage.afk_time = datetime.datetime.now()  # pylint:disable=E0602
         borg.storage.USER_AFK.update({"yes": reason})  # pylint:disable=E0602
         if reason:
@@ -99,7 +69,6 @@ async def _(event):
 async def on_afk(event):
     if event.fwd_from:
         return
-    borg.storage.recvd_messages[event.chat_id] = event.message
     afk_since = "**a while ago**"
     current_message_text = event.message.message.lower()
     if "afk" in current_message_text:
@@ -129,7 +98,7 @@ async def on_afk(event):
                     afk_since = date.strftime("%A, %Y %B %m, %H:%I")
                 else:
                     wday = now + datetime.timedelta(days=-days)
-                    afk_since = wday.strftime("%A")
+                    afk_since = wday.strftime('%A')
             elif hours > 1:
                 afk_since = f"`{int(hours)}h{int(minutes)}m` **ago**"
             elif minutes > 0:
@@ -137,11 +106,12 @@ async def on_afk(event):
             else:
                 afk_since = f"`{int(seconds)}s` **ago**"
         msg = None
-        message_to_reply = f"I'm afk since {afk_since} " + \
-            f"and I will be back soon\n__Reason:__ {reason}" \
+        message_to_reply = f"╭━╮╭━╮╱╱╱╱╱╱╭╮\n┃┃╰╯┃┃╱╱╱╱╱╭╯╰╮\n┃╭╮╭╮┣━━┳━━╋╮╭╋━━┳━╮\n┃┃┃┃┃┃╭╮┃━━┫┃┃┃┃━┫╭╯\n┃┃┃┃┃┃╭╮┣━━┃┃╰┫┃━┫┃\n╰╯╰╯╰┻╯╰┻━━╯╰━┻━━┻╯\n╭━━╮\n╰┫┣╯\n╱┃┃╭━━╮\n╱┃┃┃━━┫\n╭┫┣╋━━┃\n╰━━┻━━╯\n╭━━━╮\n┃╭━╮┃\n┃┃╱┃┣╮╭╮╭┳━━┳╮╱╭╮\n┃╰━╯┃╰╯╰╯┃╭╮┃┃╱┃┃\n┃╭━╮┣╮╭╮╭┫╭╮┃╰━╯┃\n╰╯╱╰╯╰╯╰╯╰╯╰┻━╮╭╯\n╱╱╱╱╱╱╱╱╱╱╱╱╭━╯┃\n╱╱╱╱╱╱╱╱╱╱╱╱╰━━╯\n╭━━━╮\n┃╭━━╯\n┃╰━━┳━┳━━┳╮╭╮\n┃╭━━┫╭┫╭╮┃╰╯┃\n┃┃╱╱┃┃┃╰╯┃┃┃┃\n╰╯╱╱╰╯╰━━┻┻┻╯\n╭╮╭━╮╱╱╱╱╱╱╭╮╱╱╱╱╱╱╱╱╱╱╱╭╮\n┃┃┃╭╯╱╱╱╱╱╱┃┃╱╱╱╱╱╱╱╱╱╱╱┃┃\n┃╰╯╯╭━━┳╮╱╭┫╰━┳━━┳━━┳━┳━╯┃\n┃╭╮┃┃┃━┫┃╱┃┃╭╮┃╭╮┃╭╮┃╭┫╭╮┃\n┃┃┃╰┫┃━┫╰━╯┃╰╯┃╰╯┃╭╮┃┃┃╰╯┃\n╰╯╰━┻━━┻━╮╭┻━━┻━━┻╯╰┻╯╰━━╯\n╱╱╱╱╱╱╱╭━╯┃\n╱╱╱╱╱╱╱╰━━╯  {afk_since} " + \
+            f"`\n__Reason:__ {reason}" \
             if reason \
-            else f"I'm afk since {afk_since} and I will be back soon."
+            else f"╭━╮╭━╮╱╱╱╱╱╱╭╮\n┃┃╰╯┃┃╱╱╱╱╱╭╯╰╮\n┃╭╮╭╮┣━━┳━━╋╮╭╋━━┳━╮\n┃┃┃┃┃┃╭╮┃━━┫┃┃┃┃━┫╭╯\n┃┃┃┃┃┃╭╮┣━━┃┃╰┫┃━┫┃\n╰╯╰╯╰┻╯╰┻━━╯╰━┻━━┻╯\n╭━━╮\n╰┫┣╯\n╱┃┃╭━━╮\n╱┃┃┃━━┫\n╭┫┣╋━━┃\n╰━━┻━━╯\n╭━━━╮\n┃╭━╮┃\n┃┃╱┃┣╮╭╮╭┳━━┳╮╱╭╮\n┃╰━╯┃╰╯╰╯┃╭╮┃┃╱┃┃\n┃╭━╮┣╮╭╮╭┫╭╮┃╰━╯┃\n╰╯╱╰╯╰╯╰╯╰╯╰┻━╮╭╯\n╱╱╱╱╱╱╱╱╱╱╱╱╭━╯┃\n╱╱╱╱╱╱╱╱╱╱╱╱╰━━╯\n╭━━━╮\n┃╭━━╯\n┃╰━━┳━┳━━┳╮╭╮\n┃╭━━┫╭┫╭╮┃╰╯┃\n┃┃╱╱┃┃┃╰╯┃┃┃┃\n╰╯╱╱╰╯╰━━┻┻┻╯\n╭╮╭━╮╱╱╱╱╱╱╭╮╱╱╱╱╱╱╱╱╱╱╱╭╮\n┃┃┃╭╯╱╱╱╱╱╱┃┃╱╱╱╱╱╱╱╱╱╱╱┃┃\n┃╰╯╯╭━━┳╮╱╭┫╰━┳━━┳━━┳━┳━╯┃\n┃╭╮┃┃┃━┫┃╱┃┃╭╮┃╭╮┃╭╮┃╭┫╭╮┃\n┃┃┃╰┫┃━┫╰━╯┃╰╯┃╰╯┃╭╮┃┃┃╰╯┃\n╰╯╰━┻━━┻━╮╭┻━━┻━━┻╯╰┻╯╰━━╯\n╱╱╱╱╱╱╱╭━╯┃\n╱╱╱╱╱╱╱╰━━╯ {afk_since} "
         msg = await event.reply(message_to_reply)
+        await asyncio.sleep(5)
         if event.chat_id in borg.storage.last_afk_message:  # pylint:disable=E0602
             await borg.storage.last_afk_message[event.chat_id].delete()  # pylint:disable=E0602
         borg.storage.last_afk_message[event.chat_id] = msg  # pylint:disable=E0602
